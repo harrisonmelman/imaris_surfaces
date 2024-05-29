@@ -2,7 +2,7 @@
 # allows you to run this code from anywhere and the internal relative paths still work fine
 cd "$(dirname ${BASH_SOURCE[0]})" || exit;
 # first, run the environment setup script. This makes sure that the shell and python all know where imaris etc are
-bash ../environment_setup.bash
+bash environment_setup.bash
 
 
 # input arguments
@@ -22,7 +22,7 @@ regions_dict_path="../region_dictionaries/${temp}.json";
 # this only works for specimen ims files that are named like ${ims_dir}/${specimen_id}_${contrast}.ims
 # script will create new subfolders within work_dir, one for each ROI to process.
 # this will be overridden if you provide 4 arguments
-python "../MainAlgor - multiRegions.py" ${label_imaris_path} ${label_nhdr_path} ${image_imaris_path} ${regions_dict_path} ${work_dir};
+python "prototype_make_label_surfaces.py"
 
 # this one will infer the output directory and create it (creates a subdirectory wherever your ims file is)
 #python "../MainAlgor - multiRegions.py" ${label_imaris_path} ${label_nhdr_path} ${image_imaris_path} ${regions_dict_path}
