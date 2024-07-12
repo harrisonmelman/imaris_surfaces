@@ -7,6 +7,7 @@ import treelib
 #from prototype_make_label_surfaces import read_csv_into_memory
 import logging
 import csv
+import pickle
 
 """
 # this bits just copy pasted from make_label_surfaces as a helpful reference
@@ -43,8 +44,10 @@ def read_csv_into_memory(csv_file):
 
 
 # log
+logging.basicConfig()
+logging.root.setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.addHandler(logging.StreamHandler(sys.stdout))
 
 # read in as a list of lists of strings
 
@@ -90,7 +93,6 @@ for row in RCCF_data:
     # cast it to float now that it is safe to do so.
     # this is field used to sort, and to filter out L/R regions
     graph_index = float(graph_index)
-    print("graph_index == {}".format(graph_index), flush=True)
 
     # these are the reasons to FULLY SKIP a region:
         # if is a left/right region (graph_index looks like x.1)
@@ -100,6 +102,7 @@ for row in RCCF_data:
     # ALL LEAFS ARE ONE-SIDED, therefore they all will have a 0.1 on it bc all are L/R
     # want to ignore ones where not is integer AND ROI is nan
     if not graph_index.is_integer() and ROI_num == "NaN":
+        logging.info("SKIP index {} because ROI_num is {}".format(graph_index, ROI_num))
         continue
 
     # use structure_id (not name) to define the tree
@@ -110,6 +113,8 @@ for row in RCCF_data:
     red = int(row[2])
     green = int(row[3])
     blue = int(row[4])
+
+    logging.info("\nWORKING ON:\n\tgraph_index = {}\n\tROI_num = {}\n\tstructure_name = {}\n\tstructure_id = {}\n\tparent_structure_id = {}".format(graph_index, ROI_num, structure_name, structure_id, parent_structure_id))
 
     if parent_structure_id == "NaN":
         # then this is the root node. mark for later. This is where we start tree traversal later.
@@ -137,21 +142,39 @@ for row in RCCF_data:
     # this check is not necessary because already filtered L/R and uncharted regions out above
     if structure_id not in RCCF_tree:
         RCCF_tree[structure_id] = tree_node
-        print("adding new node to the tree: {}".format(structure_id), flush=True)
+        logging.info("adding new node to the tree: {}".format(structure_id))
+    # TODO: IDK what to do with this yet. currently I ignore L/R structures. This is NOT OKAY.
+    # structure ID is NOT a unique ID. struct, struct_L, and struct_R will all have the same structure_id
+    # that's OK... idea:
+        # IF the current region has a (non-NaN) value for ROI_num, then it is an actual region
+        # this means it is a leaf node and will not have any children! this is great because we won't need to refer back to it
+        # let it's "structure_id" value be "structure_id-ROI_num"
     else:
-        logger.error("FOUND DUPLICATE STRUCTURE: {} {}".format(structure_id, structure_name))
-        break
-
+        if ROI_num == "NaN":
+            continue
+        structure_id = "{}-{}".format(structure_id, ROI_num)
+        RCCF_tree[structure_id] = tree_node
+        logging.info("adding new node to the tree: {}".format(structure_id))
+        #logger.error("FOUND DUPLICATE STRUCTURE: {} {}".format(structure_id, structure_name))
+        #break
     if parent_structure_id in RCCF_tree:
         # then add this node to the "children" list of its parent
         # then child node already has a reference to its parent
         RCCF_tree[parent_structure_id]["children"].append(structure_id)
-        print("adding child {} to parent {}".format(structure_id, parent_structure_id), flush=True)
+        logging.info("adding child {} to parent {}\n\n".format(structure_id, parent_structure_id))
+    elif parent_structure_id == "NaN":
+        # then this node is the whole brain ROOT. no work to do.
+        logging.info("returned to the root. continuing on to the next root child structure")
+        continue
     else:
-        logger.warning("cannot find the parent structure for {} -- parent={}".format(structure_id, parent_structure_id))
+        logger.warning("cannot find the parent structure for {} -- parent={}\n\n".format(structure_id, parent_structure_id))
+
+out_file = "B:/ProjectSpace/hmm56/imaris_surfaces/RCCF_tree.pkl"
+with open(out_file, 'wb') as f:
+    pickle.dump(RCCF_tree, f)
 
 from pprint import pprint
-#pprint(RCCF_tree)
+pprint(RCCF_tree)
 
 
 
