@@ -94,6 +94,13 @@ for row in RCCF_data:
     # this is field used to sort, and to filter out L/R regions
     graph_index = float(graph_index)
 
+    # TODO: remove this filter for full functionality
+    # initial test will ignore all L/R sides. all regions (except actual ROIs) will be bilateral.
+    TESTING = True
+    if TESTING:
+        if not graph_index.is_integer() and ROI_num == "NaN":
+            continue
+
     # these are the reasons to FULLY SKIP a region:
         # if is a left/right region (graph_index looks like x.1)
         # if it is an uncharted region (graph index looks like x.2)
@@ -175,8 +182,6 @@ with open(out_file, 'wb') as f:
 
 from pprint import pprint
 pprint(RCCF_tree)
-
-
 
 
 #container = factory.CreateDataContainer()
