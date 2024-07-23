@@ -4,43 +4,11 @@
 # import seaborn
 import sys
 import treelib
-#from prototype_make_label_surfaces import read_csv_into_memory
+from imaris_surface_helpers import read_csv_into_memory, safe_sort_field
 import logging
 import csv
 import pickle
 
-"""
-# this bits just copy pasted from make_label_surfaces as a helpful reference
-sys.path.append(r'C:\Program Files\Bitplane\Imaris 9.9.0\XT\python3'.replace(r'\\', '/'))
-sys.path.insert(0, 'k:/workstation/code/shared/pipeline_utilities/imaris')
-import ImarisLib
-from prototype_make_label_surfaces import read_csv_into_memory, GetServer
-vServer = GetServer()
-vImarisLib = ImarisLib.ImarisLib()
-v = vImarisLib.GetApplication(101)
-# the factory creates objects
-factory = v.GetFactory()
-# the scene handles adding forged objects to the scene
-# there must be at least one item in the scene before this is ran or scene will be set to None
-scene = v.GetSurpassScene()
-"""
-
-
-# gives me nice numerical sorting when my inputs are strings
-# helps handle NaN and empty string and other non numerical issues
-def safe_sort_field(x):
-    if len(x) == 0:
-        return -1
-    return float(x)
-
-
-# copied because my import statement keeps failing.
-# i think it is an issue with pycharm setup.
-def read_csv_into_memory(csv_file):
-    with open(csv_file, mode="r") as f:
-        csv_reader = csv.reader(f, delimiter="\t")
-        data = [row for row in csv_reader]
-    return data
 
 
 # log
@@ -94,26 +62,27 @@ for row in RCCF_data:
     # this is field used to sort, and to filter out L/R regions
     graph_index = float(graph_index)
 
-    # TODO: remove this filter for full functionality
-    # initial test will ignore all L/R sides. all regions (except actual ROIs) will be bilateral.
-    TESTING = True
-    if TESTING:
-        if not graph_index.is_integer() and ROI_num == "NaN":
-            continue
-
+    # TODO: these graph index assumptions are INCORRECT
+    # the decimal place number can continue to increase as more layers cascade.
+        # or... is it 156 is the parent
+        # and then 156.x is the child. there can be more than one child branch...??? unsure.
     # these are the reasons to FULLY SKIP a region:
         # if is a left/right region (graph_index looks like x.1)
         # if it is an uncharted region (graph index looks like x.2)
         # if ROI_num is empty string (then this is a bogus row)
-    # TODO: this is too strict of a filter
     # ALL LEAFS ARE ONE-SIDED, therefore they all will have a 0.1 on it bc all are L/R
     # want to ignore ones where not is integer AND ROI is nan
-    if not graph_index.is_integer() and ROI_num == "NaN":
-        logging.info("SKIP index {} because ROI_num is {}".format(graph_index, ROI_num))
-        continue
+    # TODO: remove this filter for full functionality
+    # initial test will ignore all L/R sides. all regions (except actual ROIs) will be bilateral.
+    TESTING = True
+    if TESTING:
+        if not graph_index.is_integer() and ROI_num == "NaN" and "_uncharted" not in structure_name:
+            logging.info("SKIP index {} because ROI_num is {}".format(graph_index, ROI_num))
+            continue
 
     # use structure_id (not name) to define the tree
     # this is NaN-safe casting. Will remain a string as NaN if that is what it is.
+    # TODO: instead cast to float. float can handle nan value
     structure_id = row[17] if row[17] == "NaN" else int(row[17])
     parent_structure_id = row[18] if row[18] == "NaN" else int(row[18])
 
@@ -127,15 +96,7 @@ for row in RCCF_data:
         # then this is the root node. mark for later. This is where we start tree traversal later.
         root_structure = structure_id
 
-    # TODO: this should be a class?
-    # one class for Tree, which is a dict of TreeNodes (which themselves are dict)
-    # one class for TreeNode, which is a dict
-    # TODO: populate the children field
-        # do this every time I get a new node
-        # search for the parent structure in the tree
-        # if it already exists, then add current node as a child
-        # if it does not exist, then we have issues??
-    # TODO: I will know if an roi is a LEAF if it has an integer for ROI_num (parent fields have ROI_num="NaN")
+    # TODO: if leaf node, then parent structure id gets ambiguous
     tree_node = {"ROI_num": ROI_num,
                  "structure_id": structure_id,
                  "parent_structure_id": parent_structure_id,
@@ -159,7 +120,14 @@ for row in RCCF_data:
     else:
         if ROI_num == "NaN":
             continue
+        # if we are here, then we have an ROI
+        # the L/R should be placed underneath the whole ROI folder
+        # currently itis placed adjacent to it
+        # this will probably break uncharted regions.
+        parent_structure_id = structure_id
         structure_id = "{}-{}".format(structure_id, ROI_num)
+        tree_node["structure_id"] = structure_id
+        tree_node["parent_structure_id"] = parent_structure_id
         RCCF_tree[structure_id] = tree_node
         logging.info("adding new node to the tree: {}".format(structure_id))
         #logger.error("FOUND DUPLICATE STRUCTURE: {} {}".format(structure_id, structure_name))
@@ -178,7 +146,9 @@ for row in RCCF_data:
 
 out_file = "B:/ProjectSpace/hmm56/imaris_surfaces/RCCF_tree.pkl"
 with open(out_file, 'wb') as f:
-    pickle.dump(RCCF_tree, f)
+    print("DUMP MY PICKLE")
+    pickle.dump(RCCF_tree, f, pickle.HIGHEST_PROTOCOL)
+    print("finished dump")
 
 from pprint import pprint
 pprint(RCCF_tree)
