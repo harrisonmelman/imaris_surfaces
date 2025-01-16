@@ -19,7 +19,14 @@ logger.addHandler(logging.StreamHandler(sys.stdout))
 
 # read in as a list of lists of strings
 
-RCCF_csv_file = "K:/workstation/static_data/atlas/symmetric15um/labels/RCCF/symmetric15um_RCCF_labels_lookup.txt"
+# the existing one in atlas folder had a problem. I made a copy and manually edited to keep working
+# james has been notified of the LUT error
+
+#RCCF_csv_file = "K:/workstation/static_data/atlas/symmetric15um/labels/RCCF/symmetric15um_RCCF_labels_lookup.txt"
+# *_manual_fixed was fixed in notepad++. this was failed to read by the python script
+# *AON_graph_index_fixed was editied in open office. This worked fine.
+#RCCF_csv_file = "B:/ProjectSpace/hmm56/imaris_surfaces/symmetric15um_RCCF_labels_lookup_manual_fix.txt"
+RCCF_csv_file = "B:/ProjectSpace/hmm56/imaris_surfaces/symmetric15um_RCCF_labels_lookup_AON_graph_index_fixed.csv"
 RCCF_data = read_csv_into_memory(RCCF_csv_file)
 # TODO: automatically find the first rows of the LUT. james has a tool for this
 # currently, row 27 (0 index) is the first "old style" header line
@@ -76,8 +83,8 @@ for row in RCCF_data:
     # initial test will ignore all L/R sides. all regions (except actual ROIs) will be bilateral.
     TESTING = True
     if TESTING:
-        if not graph_index.is_integer() and ROI_num == "NaN" and "_uncharted" not in structure_name:
-            logging.info("SKIP index {} because ROI_num is {}".format(graph_index, ROI_num))
+        if not graph_index.is_integer() and ROI_num == "NaN" and ("_left" in structure_name or "_right" in structure_name):
+            logging.info("SKIP index {} because ROI_num is {}. structure_id: {}. name: {}".format(graph_index, ROI_num, row[17], structure_name))
             continue
 
     # use structure_id (not name) to define the tree
@@ -124,7 +131,20 @@ for row in RCCF_data:
         # the L/R should be placed underneath the whole ROI folder
         # currently itis placed adjacent to it
         # this will probably break uncharted regions.
-        parent_structure_id = structure_id
+        # TODO: this is where my issue for NESTED Left then Right ROIs comes from
+            # happens in the case where the FIRST entry in the csv with this ID was a bare ROI
+            # this means its parent was not created. but right here I fully assume that the previously created one is CLEARLY the parent
+            # this was bad assumption. unsure how to fix
+        # need logic to determine if this structure ID actually has validity as a parent
+        # if ROI is nan (of the PARENT STRUCTURE ID)
+        if RCCF_tree[parent_structure_id]["ROI_num"] == "NaN":
+            # then this structure can validly be a PARENT (a folder in Imaris)
+            print("parent ROI is NaN")
+            parent_structure_id = structure_id
+        else:
+            # otherwise, then go find the "grandparent" (truthfully, your already-correctly-sorted sibling's parent)
+            # I'm going to kick myself for these shitty comments...
+            parent_structure_id = RCCF_tree[parent_structure_id]["parent_structure_id"]
         structure_id = "{}-{}".format(structure_id, ROI_num)
         tree_node["structure_id"] = structure_id
         tree_node["parent_structure_id"] = parent_structure_id
