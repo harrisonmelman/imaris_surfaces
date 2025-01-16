@@ -28,9 +28,11 @@ def convert_color_to_8bit(red, green, blue, alpha=0):
     return vRGBA
 
 def get_color_from_RCCF_csv(csv, index):
+    # deprecated function. the tree dict has the color information. just call convert_color_to_8bit with that rgba vals
+    return
     # given an ROI value, return the RGBA (in 0-255 values) for the relevant region
-    internal_index = index+3 # to offset from the headers
-    print(csv[internal_index])
+    internal_index = index + 3  # to offset from the headers
+    #internal_index = index + 3  # for longer Rob header
     r = csv[internal_index][2]
     g = csv[internal_index][3]
     b = csv[internal_index][4]
@@ -39,6 +41,7 @@ def get_color_from_RCCF_csv(csv, index):
     a = 0
     print("RGBA = {} | {} | {} | {}".format(r, g, b, a))
     return convert_color_to_8bit(r, g, b, a)
+
 
 # TODO:
     # find parent structure ID columns
@@ -65,6 +68,16 @@ def read_csv_into_memory(csv_file):
         # roi_num, roi_name, R, G, B, A
         # i want to keep the name so that I can nicely name the ROIs
     return data
+
+
+# gives me nice numerical sorting when my inputs are strings
+# helps handle NaN and empty string and other non numerical issues
+def safe_sort_field(x):
+    print('SAFE SORT')
+    print(x)
+    if len(x) == 0:
+        return -1
+    return float(x)
 
 
 def get_random_color():
@@ -95,6 +108,9 @@ def get_random_color():
 
 
 def GetServer():
-    vImarisLib = ImarisLib.ImarisLib()
-    vServer = vImarisLib.GetServer()
-    return vServer
+    imaris_lib = ImarisLib.ImarisLib()
+    imaris_server = imaris_lib.GetServer()
+    return imaris_server
+
+
+
