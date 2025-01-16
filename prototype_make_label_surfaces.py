@@ -10,6 +10,7 @@ import random
 import nrrd
 import imagej
 import csv
+import imaris_surface_helpers
 
 # these append statements are required to correctly find ImarisLib and all of its dependencies
 # this sys.path.append is the correct way to modify your PYTHONPATH variable
@@ -33,7 +34,7 @@ output_dir = "B:/ProjectSpace/hmm56/imaris_surfaces/test_results"
 # TODO change to symmnetric15 labels, DMBA labels are out of date
 RCCF_csv_file = "K:/workstation/static_data/atlas/symmetric15um/labels/RCCF/symmetric15um_RCCF_labels_lookup.txt"
 #RCCF_csv_file = "B:/22.gaj.49/DMBA/Aligned-Data-RAS/labels/RCCF/DMBA_RCCF_labels_lookup.txt"
-RCCF_label_colors = read_csv_into_memory(RCCF_csv_file)
+RCCF_label_colors = imaris_surface_helpers.read_csv_into_memory(RCCF_csv_file)
 #sys.exit("testing")
 
 label_indices = list(range(1, 181, 30)) + list(range(1001, 1181, 30))
@@ -45,7 +46,7 @@ imaris_process = subprocess.Popen(['C:\\Program Files\\Bitplane\\Imaris 10.1.1\\
 time.sleep(10)
 
 # find the imaris application to interact with it (opened by the setup script)
-vServer = GetServer()
+vServer = imaris_surface_helpers.GetServer()
 vImarisLib = ImarisLib.ImarisLib()
 v = vImarisLib.GetApplication(101)
 
@@ -61,9 +62,9 @@ load_options = ""
 
 # load only the label volume. Then, volume 0 is the labelset
 img = v.GetImage(0)
-vExtentMin = [img.GetExtendMinX(),img.GetExtendMinY(),img.GetExtendMinZ()]
+vExtentMin = [img.GetExtendMinX(), img.GetExtendMinY(), img.GetExtendMinZ()]
 vExtentMax = [img.GetExtendMaxX(), img.GetExtendMaxY(), img.GetExtendMaxZ()]
-print('vExtentMin:',vExtentMin)
+print('vExtentMin:', vExtentMin)
 aChannel = 0
 
 label_indices = [1, 15, 30, 90, 145]
@@ -80,11 +81,11 @@ for x in label_indices:
     vSur.SetName('Surface ' + str(x))
     # color = colors[i]
 
-    color = get_color_from_RCCF_csv(RCCF_label_colors, x)
+    color = imaris_surface_helpers.get_color_from_RCCF_csv(RCCF_label_colors, x)
     # aValue consists in four bytes encoding the red (least significant byte), green, blue and alpha (most significant byte) components of the color to be set.
     # The range of each component is 0-255. An alpha value of 0 represents full opacity, while 255 means full transparency.
     #vSur.SetColorRGBA(color)
-    color = get_random_color()
+    color = imaris_surface_helpers.get_random_color()
     gotten_color = vSur.GetColorRGBA()
     print("working on ROI: {}".format(x))
     print("got color: {}".format(gotten_color))
@@ -95,13 +96,16 @@ for x in label_indices:
     i = i + 1
 
 
-factory = v.GetFactory()
+
+
+
+"""factory = v.GetFactory()
 # create new folder (generic name)
 container=factory.CreateDataContainer()
 # add folder to scene
 v.GetSurpassScene().AddChild(container)
 # add a surface to the new container
-container.AddChild(surface,-1)
+container.AddChild(surface,-1)"""
 
 
 
