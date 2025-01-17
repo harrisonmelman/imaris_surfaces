@@ -1,15 +1,18 @@
 # scratchpad for traversing the ROI "tree" in the RCCF_labels csv file
 
+# this creates a pickled version of the tree for later use?
+
 # check this out
 # import seaborn
 import sys
-import treelib
-from imaris_surface_helpers import read_csv_into_memory, safe_sort_field
 import logging
-import csv
 import pickle
+# currently unused
+# import treelib
+# import csv
 
-
+# put your internal imports last
+from imaris_surface_helpers import read_csv_into_memory, safe_sort_field
 
 # log
 logging.basicConfig()
@@ -22,10 +25,10 @@ logger.addHandler(logging.StreamHandler(sys.stdout))
 # the existing one in atlas folder had a problem. I made a copy and manually edited to keep working
 # james has been notified of the LUT error
 
-#RCCF_csv_file = "K:/workstation/static_data/atlas/symmetric15um/labels/RCCF/symmetric15um_RCCF_labels_lookup.txt"
+# RCCF_csv_file = "K:/workstation/static_data/atlas/symmetric15um/labels/RCCF/symmetric15um_RCCF_labels_lookup.txt"
 # *_manual_fixed was fixed in notepad++. this was failed to read by the python script
 # *AON_graph_index_fixed was editied in open office. This worked fine.
-#RCCF_csv_file = "B:/ProjectSpace/hmm56/imaris_surfaces/symmetric15um_RCCF_labels_lookup_manual_fix.txt"
+# RCCF_csv_file = "B:/ProjectSpace/hmm56/imaris_surfaces/symmetric15um_RCCF_labels_lookup_manual_fix.txt"
 RCCF_csv_file = "B:/ProjectSpace/hmm56/imaris_surfaces/symmetric15um_RCCF_labels_lookup_AON_graph_index_fixed.csv"
 RCCF_data = read_csv_into_memory(RCCF_csv_file)
 # TODO: automatically find the first rows of the LUT. james has a tool for this
@@ -50,8 +53,8 @@ RCCF_data.sort(key=lambda x: safe_sort_field(x[29]))
 # after I have the tree fully built, then START AT ROOT NODE
 # create a recursive function. loop through all children in the root node and recall
 # if a node has no children, then it is a root node and I need to create the actual structure surface
-    # all children that are not leaves, will become groups (folders)
-    # unsure what is the correct order of operations of when to create/ add things to folders
+# all children that are not leaves, will become groups (folders)
+# unsure what is the correct order of operations of when to create/ add things to folders
 RCCF_tree = {}
 # to know where to start the tree traversal later. This structure will not have any parent.
 root_structure = 0
@@ -71,20 +74,23 @@ for row in RCCF_data:
 
     # TODO: these graph index assumptions are INCORRECT
     # the decimal place number can continue to increase as more layers cascade.
-        # or... is it 156 is the parent
-        # and then 156.x is the child. there can be more than one child branch...??? unsure.
+    # or... is it 156 is the parent
+    # and then 156.x is the child. there can be more than one child branch...??? unsure.
     # these are the reasons to FULLY SKIP a region:
-        # if is a left/right region (graph_index looks like x.1)
-        # if it is an uncharted region (graph index looks like x.2)
-        # if ROI_num is empty string (then this is a bogus row)
+    # if is a left/right region (graph_index looks like x.1)
+    # if it is an uncharted region (graph index looks like x.2)
+    # if ROI_num is empty string (then this is a bogus row)
     # ALL LEAFS ARE ONE-SIDED, therefore they all will have a 0.1 on it bc all are L/R
     # want to ignore ones where not is integer AND ROI is nan
     # TODO: remove this filter for full functionality
     # initial test will ignore all L/R sides. all regions (except actual ROIs) will be bilateral.
     TESTING = True
     if TESTING:
-        if not graph_index.is_integer() and ROI_num == "NaN" and ("_left" in structure_name or "_right" in structure_name):
-            logging.info("SKIP index {} because ROI_num is {}. structure_id: {}. name: {}".format(graph_index, ROI_num, row[17], structure_name))
+        if not graph_index.is_integer() and ROI_num == "NaN" and (
+            "_left" in structure_name or "_right" in structure_name):
+            logging.info(
+                "SKIP index {} because ROI_num is {}. structure_id: {}. name: {}".format(graph_index, ROI_num, row[17],
+                                                                                         structure_name))
             continue
 
     # use structure_id (not name) to define the tree
@@ -97,7 +103,9 @@ for row in RCCF_data:
     green = int(row[3])
     blue = int(row[4])
 
-    logging.info("\nWORKING ON:\n\tgraph_index = {}\n\tROI_num = {}\n\tstructure_name = {}\n\tstructure_id = {}\n\tparent_structure_id = {}".format(graph_index, ROI_num, structure_name, structure_id, parent_structure_id))
+    logging.info(
+        "\nWORKING ON:\n\tgraph_index = {}\n\tROI_num = {}\n\tstructure_name = {}\n\tstructure_id = {}\n\tparent_structure_id = {}".format(
+            graph_index, ROI_num, structure_name, structure_id, parent_structure_id))
 
     if parent_structure_id == "NaN":
         # then this is the root node. mark for later. This is where we start tree traversal later.
@@ -121,9 +129,9 @@ for row in RCCF_data:
     # TODO: IDK what to do with this yet. currently I ignore L/R structures. This is NOT OKAY.
     # structure ID is NOT a unique ID. struct, struct_L, and struct_R will all have the same structure_id
     # that's OK... idea:
-        # IF the current region has a (non-NaN) value for ROI_num, then it is an actual region
-        # this means it is a leaf node and will not have any children! this is great because we won't need to refer back to it
-        # let it's "structure_id" value be "structure_id-ROI_num"
+    # IF the current region has a (non-NaN) value for ROI_num, then it is an actual region
+    # this means it is a leaf node and will not have any children! this is great because we won't need to refer back to it
+    # let it's "structure_id" value be "structure_id-ROI_num"
     else:
         if ROI_num == "NaN":
             continue
@@ -132,9 +140,9 @@ for row in RCCF_data:
         # currently itis placed adjacent to it
         # this will probably break uncharted regions.
         # TODO: this is where my issue for NESTED Left then Right ROIs comes from
-            # happens in the case where the FIRST entry in the csv with this ID was a bare ROI
-            # this means its parent was not created. but right here I fully assume that the previously created one is CLEARLY the parent
-            # this was bad assumption. unsure how to fix
+        # happens in the case where the FIRST entry in the csv with this ID was a bare ROI
+        # this means its parent was not created. but right here I fully assume that the previously created one is CLEARLY the parent
+        # this was bad assumption. unsure how to fix
         # need logic to determine if this structure ID actually has validity as a parent
         # if ROI is nan (of the PARENT STRUCTURE ID)
         if RCCF_tree[parent_structure_id]["ROI_num"] == "NaN":
@@ -150,8 +158,8 @@ for row in RCCF_data:
         tree_node["parent_structure_id"] = parent_structure_id
         RCCF_tree[structure_id] = tree_node
         logging.info("adding new node to the tree: {}".format(structure_id))
-        #logger.error("FOUND DUPLICATE STRUCTURE: {} {}".format(structure_id, structure_name))
-        #break
+        # logger.error("FOUND DUPLICATE STRUCTURE: {} {}".format(structure_id, structure_name))
+        # break
     if parent_structure_id in RCCF_tree:
         # then add this node to the "children" list of its parent
         # then child node already has a reference to its parent
@@ -162,7 +170,8 @@ for row in RCCF_data:
         logging.info("returned to the root. continuing on to the next root child structure")
         continue
     else:
-        logger.warning("cannot find the parent structure for {} -- parent={}\n\n".format(structure_id, parent_structure_id))
+        logger.warning(
+            "cannot find the parent structure for {} -- parent={}\n\n".format(structure_id, parent_structure_id))
 
 out_file = "B:/ProjectSpace/hmm56/imaris_surfaces/RCCF_tree.pkl"
 with open(out_file, 'wb') as f:
@@ -171,13 +180,12 @@ with open(out_file, 'wb') as f:
     print("finished dump")
 
 from pprint import pprint
+
 pprint(RCCF_tree)
 
-
-#container = factory.CreateDataContainer()
-#container.SetName(structure_name)
+# container = factory.CreateDataContainer()
+# container.SetName(structure_name)
 # this is what to do if the folder is at the root. -1 means place it at the bottom of the list
 # -1 also means it can be indexed by scene.GetChild[-1]x
-#scene.AddChild(container, -1)
+# scene.AddChild(container, -1)
 # what to do if i wanna make a subfolder?
-

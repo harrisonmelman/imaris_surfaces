@@ -1,10 +1,11 @@
-import imaris_surface_helpers as imsurf
 import pickle
 import sys
 import subprocess
 import time
-import os
-from pprint import pprint
+# currently unused
+# import os
+# from pprint import pprint
+import imaris_surface_helpers as imsurf
 
 """
 # this bits just copy pasted from make_label_surfaces as a helpful reference
@@ -32,11 +33,13 @@ container.AddChild(surface,-1)
 """
 
 
-#def create_surface(roi_num, RCCF_label_colors):
+# def create_surface(roi_num, RCCF_label_colors):
 def create_surface(node):
     roi_num = int(node["ROI_num"])
     label_bounds = [roi_num - 0.5, roi_num + 0.5]
-    surface = imaris_app.GetImageProcessing().DetectSurfacesWithUpperThreshold(img, [], 0, 0, 0, True, False, label_bounds[0], True, False, label_bounds[1], None)
+    surface = imaris_app.GetImageProcessing().DetectSurfacesWithUpperThreshold(img, [], 0, 0, 0, True, False,
+                                                                               label_bounds[0], True, False,
+                                                                               label_bounds[1], None)
     print("create surface for ROI: {}".format(roi_num))
     # last argument is alpha. 0 gives full opacity
     color = imsurf.convert_color_to_8bit(node["red"], node["green"], node["blue"], 0)
@@ -49,19 +52,20 @@ def create_surface(node):
 def traverse(node, parent_group):
     if node is None:
         return
-    #children = node["children"]
-    #name = node["structure_name"]
+    # children = node["children"]
+    # name = node["structure_name"]
     # then create surface
-    #if children is None:
+    # if children is None:
     # checking for empty list
     if not node["children"]:
         # TODO: what do I do with these? Ignore them?
         if node["ROI_num"] == "NaN":
             return
         print("THIS IS AN EXPLICIT ROI. CREATING SURFACE")
-        #pprint(node)
+        # pprint(node)
         # TODO: name the surface as node["structure_name"]
-        print("\troi: {}\n\tstructure_id: {}\n\tstructure_name: {}".format(node["ROI_num"], node["structure_id"], node["structure_name"]))
+        print("\troi: {}\n\tstructure_id: {}\n\tstructure_name: {}".format(node["ROI_num"], node["structure_id"],
+                                                                           node["structure_name"]))
         surface = create_surface(node)
         surface.SetName(node["structure_name"])
         parent_group.AddChild(surface, -1)
@@ -90,8 +94,8 @@ RCCF_label_colors = imsurf.read_csv_into_memory(RCCF_csv_file)
 
 # launch imaris
 # old version
-#imaris_path = r"C:\Program Files\Bitplane\Imaris 10.1.1\Imaris.exe"
-#xt_path = r"C:\Program Files\Bitplane\Imaris 10.1.1\XT\python3"
+# imaris_path = r"C:\Program Files\Bitplane\Imaris 10.1.1\Imaris.exe"
+# xt_path = r"C:\Program Files\Bitplane\Imaris 10.1.1\XT\python3"
 imaris_path = r"C:/Program Files/Bitplane/Imaris 10.1.1/Imaris.exe"
 xt_path = r"C:/Program Files/Bitplane/Imaris 10.1.1/XT/python3"
 imaris_path = r"C:/Program Files/Bitplane/Imaris 10.1.1/Imaris.exe"
@@ -112,6 +116,7 @@ sys.path.insert(0, "k:/workstation/code/shared/pipeline_utilities/imaris")
 # to fix DLL load failure. only loads from trusted sources.
 # probably will not work since pthon < 3.8
 import ImarisLib
+
 imaris_lib = ImarisLib.ImarisLib()
 imaris_server = imaris_lib.GetServer()
 # previously v
@@ -125,6 +130,7 @@ if open_imaris:
 img = imaris_app.GetImage(0)
 
 from pprint import pprint
+
 with open(RCCF_tree_file, "rb") as f:
     RCCF_tree = pickle.load(f)
     root = RCCF_tree[root_structure_id]
