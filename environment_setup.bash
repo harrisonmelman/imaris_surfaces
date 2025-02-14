@@ -19,7 +19,8 @@ fi;
 # py_dir=/k/DevApps/python/python39
 # py_dir=/L/DevApps/python/python39
 # py_dir=/L/DevApps/python/python37
-py_dir=/k/DevApps/python/python37
+# py_dir=/c/DevApps/python/python37
+py_dir=${WORKSTATION_HOME}/../DevApps/python/python37;
 ims_dir="/c/Program Files/bitplane/imaris 9.9.0"
 pyxt_dir="$ims_dir/xt/python3";
 export PATH="$py_dir:$py_dir/Scripts:$ims_dir:$pyxt_dir:$PATH";
