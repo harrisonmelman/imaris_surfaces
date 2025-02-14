@@ -2,8 +2,7 @@ import pickle
 import sys
 import subprocess
 import time
-# currently unused
-# import os
+import os
 # from pprint import pprint
 import imaris_surface_helpers as imsurf
 
@@ -47,15 +46,29 @@ def create_surface(node):
     return surface
 
 
+def check_if_dead_end(node):
+    # if a node is not an ROI, then it should become a folder
+    # BUT, if it does not have any children who are ROI, then we want to ignore it
+    # recursively check children to see if we end up with a real ROI
+    # if we do not, then we should skip this branch without making a folder
+    if node["ROI_num"] == "NaN":
+        # then we are some type of folder
+        if not node["children"]:
+            # then we have no children. dead end.
+            return True
+        else:
+            # then check each child for dead-endedness
+            for child in node["children"]:
+                if check_if_dead_end(child):
+                    return True
+            return False
+
+
 # node is a Dict entry in the RCCF label tree
 # parent_group is an Imaris group object (a folder)
 def traverse(node, parent_group):
     if node is None:
         return
-    # children = node["children"]
-    # name = node["structure_name"]
-    # then create surface
-    # if children is None:
     # checking for empty list
     if not node["children"]:
         # TODO: what do I do with these? Ignore them?
@@ -71,25 +84,28 @@ def traverse(node, parent_group):
         parent_group.AddChild(surface, -1)
         return
     # else it is a group
-    container = factory.CreateDataContainer()
-    container.SetName(node["structure_name"])
-    parent_group.AddChild(container, -1)
-    for child in node["children"]:
-        traverse(RCCF_tree[child], container)
-    return
+    if not check_if_dead_end(node):
+        container = factory.CreateDataContainer()
+        container.SetName(node["structure_name"])
+        parent_group.AddChild(container, -1)
+        for child in node["children"]:
+            traverse(RCCF_tree[child], container)
+        return
+    else:
+        return
 
 
 if __name__ == "__main__":
     # if you want this script to handle imaris launch and data load
     # if false, will only search for application 101 and load image 0 from the scene. be careful.
-    open_imaris = False
+    open_imaris = True
 
     # whole brain root
     root_structure_id = 997
     output_dir = "B:/ProjectSpace/hmm56/imaris_surfaces/test_results/2025"
-    RCCF_tree_file = "B:/ProjectSpace/hmm56/imaris_surfaces/RCCF_tree-2025.pkl"
+    RCCF_tree_file = "B:/ProjectSpace/hmm56/imaris_surfaces/RCCF_tree-reduced.pkl"
     RCCF_csv_file = "K:/workstation/static_data/atlas/symmetric15um/labels/RCCF/symmetric15um_RCCF_labels_lookup.txt"
-    label_imaris_path = r"B:\22.gaj.49\DMBA\Aligned-Data\Other\ims\labels\RCCF\DMBA_RCCF_labels.ims"
+    label_imaris_path = r"B:\22.gaj.49\DMBA\Aligned-Data-RAS\Other\ims\labels\RCCF\DMBA_RCCF_labels.ims"
     RCCF_label_colors = imsurf.read_csv_into_memory(RCCF_csv_file)
 
     # launch imaris
@@ -99,7 +115,7 @@ if __name__ == "__main__":
     imaris_path = r"C:/Program Files/Bitplane/Imaris 10.1.1/Imaris.exe"
     xt_path = r"C:/Program Files/Bitplane/Imaris 10.1.1/XT/python3"
     imaris_path = r"C:/Program Files/Bitplane/Imaris 10.1.1/Imaris.exe"
-    xt_path = 'C:\\Program Files\\Bitplane\\Imaris 10.1.1\\XT\\python3'
+    #xt_path = 'C:\\Program Files\\Bitplane\\Imaris 10.1.1\\XT\\python3'
 
     if open_imaris:
         imaris_process = subprocess.Popen([imaris_path, "id101"])
@@ -112,7 +128,13 @@ if __name__ == "__main__":
     # this sys.path.append is the correct way to modify your PYTHONPATH variable
     sys.path.append(imaris_path)
     sys.path.append(xt_path)
-    sys.path.insert(0, "k:/workstation/code/shared/pipeline_utilities/imaris")
+    workstation_imaris_path = "{}/code/shared/pipeline_utilities/imaris".format(os.environ["WORKSTATION_HOME"])
+    workstation_imaris_path = workstation_imaris_path.replace("\\", "/")
+    sys.path.insert(0, workstation_imaris_path)
+    # only works python > 3.8
+    # os.add_dll_directory(workstation_imaris_path)
+    # os.add_dll_directory(xt_path)
+
     # to fix DLL load failure. only loads from trusted sources.
     # probably will not work since python < 3.8
     import ImarisLib
@@ -122,7 +144,7 @@ if __name__ == "__main__":
     # previously v
     imaris_app = imaris_lib.GetApplication(101)
     factory = imaris_app.GetFactory()
-    # load label file programatically
+    # load label file programmatically
     load_options = ""
     if open_imaris:
         imaris_app.FileOpen(label_imaris_path, load_options)
