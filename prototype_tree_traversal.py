@@ -29,7 +29,7 @@ logger.addHandler(logging.StreamHandler(sys.stdout))
 # *_manual_fixed was fixed in notepad++. this was failed to read by the python script
 # *AON_graph_index_fixed was editied in open office. This worked fine.
 # RCCF_csv_file = "B:/ProjectSpace/hmm56/imaris_surfaces/symmetric15um_RCCF_labels_lookup_manual_fix.txt"
-RCCF_csv_file = "B:/ProjectSpace/hmm56/imaris_surfaces/symmetric15um_RCCF_labels_lookup_AON_graph_index_fixed.csv"
+RCCF_csv_file = "B:/ProjectSpace/hmm56/imaris_surfaces/data/symmetric15um_RCCF_labels_lookup_AON_graph_index_fixed.csv"
 RCCF_data = read_csv_into_memory(RCCF_csv_file)
 # TODO: automatically find the first rows of the LUT. james has a tool for this
 # currently, row 27 (0 index) is the first "old style" header line
@@ -173,7 +173,7 @@ for row in RCCF_data:
         logger.warning(
             "cannot find the parent structure for {} -- parent={}\n\n".format(structure_id, parent_structure_id))
 
-out_file = "B:/ProjectSpace/hmm56/imaris_surfaces/RCCF_tree.pkl"
+out_file = "B:/ProjectSpace/hmm56/imaris_surfaces/data/templates/RCCF_tree-reduced.pkl"
 with open(out_file, 'wb') as f:
     print("DUMP MY PICKLE")
     pickle.dump(RCCF_tree, f, pickle.HIGHEST_PROTOCOL)
