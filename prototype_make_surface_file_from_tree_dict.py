@@ -157,11 +157,24 @@ def flat_traverse(node, parent_group, white_list=None):
         return
 
 
+def load_white_list(file_path):
+    # Read the Excel file into a DataFrame
+    # excel is a full 360 rows color lookup table
+    # has an extra column at the end called 'in_manuscript_figure' which is either 'yes' or 'nan'
+    df = pd.read_excel(file_path)
+    length = df.shape[0]
+    white_list = [df["# ROI"][x] for x in range(length) if df['in_manuscript_figure'][x] == 'yes']
+    return white_list
+
+
 
 if __name__ == "__main__":
     # if you want this script to handle imaris launch and data load
     # if false, will only search for application 101 and load image 0 from the scene. be careful.
     open_imaris = True
+
+    white_list_file = "B:/20.5xfad.01/BXD77_paper/imaris_figure/bxd77_5xfadpaper_figure_colors.xlsx"
+    white_list = load_white_list(white_list_file)
 
 
     output_dir = "B:/ProjectSpace/hmm56/imaris_surfaces/test_results/2025"
@@ -219,4 +232,5 @@ if __name__ == "__main__":
         root = RCCF_tree[root_structure_id]
         # the parent of the root node is the root of the imaris filesystem
         #traverse(root, imaris_app.GetSurpassScene())
-        flat_traverse(RCCF_tree[root["children"][2]], imaris_app.GetSurpassScene())  # test on subset for speed
+        #flat_traverse(RCCF_tree[root["children"][2]], imaris_app.GetSurpassScene())  # test on subset for speed
+        flat_traverse(root, imaris_app.GetSurpassScene(), white_list=white_list)
