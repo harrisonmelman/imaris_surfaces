@@ -5,6 +5,7 @@ import time
 import os
 # from pprint import pprint
 import imaris_surface_helpers as imsurf
+import pandas as pd
 
 """
 # this bits just copy pasted from make_label_surfaces as a helpful reference
@@ -75,6 +76,8 @@ def check_if_dead_end(node):
 # node is a Dict entry in the RCCF label tree
 # parent_group is an Imaris group object (a folder)
 def traverse(node, parent_group):
+    """Creates a single imaris file with a hierarchial RCCF tree surfaces object
+    group strutures are represented as groups (folders) and rois are represented as surface objects"""
     print("current node: {}".format(node)) if DEBUG else ""
     if node is None:
         print("\tNode is None. Return.") if DEBUG else ""
@@ -109,27 +112,70 @@ def traverse(node, parent_group):
         return
 
 
+def flat_traverse(node, parent_group, white_list=None):
+    """This approach ignores the hierarchy. Creates a surface object per roi
+    This function should save all of the regions to separate files"""
+    # basically, it traverses as normally
+    # but it always passes the root node as parent_group to prevent hierarchies
+    # and it does not create the folder structure
+    # otherwise works exactly the same
+    # white list is an optional argument, if True, it will generate ONLY the asked for regions
+    print("current node: {}".format(node)) if DEBUG else ""
+    if node is None:
+        print("\tNode is None. Return.") if DEBUG else ""
+        return
+    # checking for empty list
+    if not node["children"]:
+        if node["ROI_num"] == "NaN":
+            return
+        if white_list is not None:
+            print("white list is given")
+            if node["ROI_num"] not in white_list:
+                # if we are given an explicit list of children, then check this one is a member
+                print("white list is given, and {} is not a member".format(node["ROI_num"]))
+                return
+
+        print("THIS IS AN EXPLICIT ROI. CREATING SURFACE")
+        print("\troi: {}\n\tstructure_id: {}\n\tstructure_name: {}".format(node["ROI_num"], node["structure_id"],
+                                                                           node["structure_name"]))
+        surface = create_surface(node)
+        surface.SetName(node["structure_name"])
+        parent_group.AddChild(surface, -1)
+        return
+    # else it is a group
+    if not check_if_dead_end(node):
+        print("is a group and is not a dead end. keep traversaling") if DEBUG else ""
+        #container = factory.CreateDataContainer()
+        #container.SetName(node["structure_name"])
+        #parent_group.AddChild(container, -1)
+        for child in node["children"]:
+            print("calling traverse on child {}".format(child)) if DEBUG else ""
+            flat_traverse(RCCF_tree[child], parent_group)
+        return
+    else:
+        print("hit final else, just return") if DEBUG else ""
+        return
+
+
+
 if __name__ == "__main__":
     # if you want this script to handle imaris launch and data load
     # if false, will only search for application 101 and load image 0 from the scene. be careful.
-    open_imaris = False
+    open_imaris = True
 
 
     output_dir = "B:/ProjectSpace/hmm56/imaris_surfaces/test_results/2025"
     RCCF_tree_file = "B:/ProjectSpace/hmm56/imaris_surfaces/data/templates/RCCF_tree-reduced.pkl"
-    RCCF_csv_file = "K:/workstation/static_data/atlas/symmetric15um/labels/RCCF/symmetric15um_RCCF_labels_lookup.txt"
-    #label_imaris_path = r"B:\22.gaj.49\DMBA\Aligned-Data-0.3\Other\ims\labels\RCCF\DMBA_RCCF_labels.ims"
     label_imaris_path = "B:/22.gaj.49/DMBA/Aligned-Data-0.3/Other/ims/labels/RCCF/DMBA_RCCF_labels.ims"
+    RCCF_csv_file = "K:/workstation/static_data/atlas/symmetric15um/labels/RCCF/symmetric15um_RCCF_labels_lookup.txt"
     RCCF_label_colors = imsurf.read_csv_into_memory(RCCF_csv_file)
-
-    # launch imaris
-    #imaris_path = r"C:/Program Files/Bitplane/Imaris 10.1.1/Imaris.exe"
-    #xt_path = r"C:/Program Files/Bitplane/Imaris 10.1.1/XT/python3"
-    imaris_path = r"C:/Program Files/Bitplane/Imaris 10.2.0/Imaris.exe"
-    xt_path = r"C:/Program Files/Bitplane/Imaris 10.2.0/XT/python3"
 
     # whole brain root. I believe this always stays the same
     root_structure_id = 997
+
+    # launch imaris
+    imaris_path = r"C:/Program Files/Bitplane/Imaris 10.2.0/Imaris.exe"
+    xt_path = r"C:/Program Files/Bitplane/Imaris 10.2.0/XT/python3"
 
     if open_imaris:
         imaris_process = subprocess.Popen([imaris_path, "id101"])
@@ -140,21 +186,18 @@ if __name__ == "__main__":
     # setup imaris connection
     # these append statements are required to correctly find ImarisLib and all of its dependencies
     # this sys.path.append is the correct way to modify your PYTHONPATH variable
-    #sys.path.append(imaris_path.replace("/"))
-    #sys.path.append(xt_path.replace("/"))
     workstation_imaris_path = "{}/code/shared/pipeline_utilities/imaris".format(os.environ["WORKSTATION_HOME"])
-    #workstation_imaris_path = workstation_imaris_path.replace("\\", "/")
     sys.path.append(imaris_path.replace("/","\\"))
     sys.path.append(xt_path.replace("/","\\"))
     workstation_imaris_path = workstation_imaris_path.replace("/","\\")
+    # insert at 0 to put it at front of search path.
     sys.path.insert(0, workstation_imaris_path)
     print(sys.path)
     # only works python > 3.8
     # os.add_dll_directory(workstation_imaris_path)
     # os.add_dll_directory(xt_path)
 
-    # to fix DLL load failure. only loads from trusted sources.
-    # probably will not work since python < 3.8
+    # must run this after modifying PYTHONPATH
     import ImarisLib
 
     imaris_lib = ImarisLib.ImarisLib()
@@ -166,14 +209,14 @@ if __name__ == "__main__":
     load_options = ""
     if open_imaris:
         imaris_app.FileOpen(label_imaris_path, load_options)
+        time.sleep(10)
     # load only the label file so that this is unambiguous
     img = imaris_app.GetImage(0)
-
-    from pprint import pprint
 
     print("attempt to open {}".format(RCCF_tree_file))
     with open(RCCF_tree_file, "rb") as f:
         RCCF_tree = pickle.load(f)
         root = RCCF_tree[root_structure_id]
         # the parent of the root node is the root of the imaris filesystem
-        traverse(root, imaris_app.GetSurpassScene())
+        #traverse(root, imaris_app.GetSurpassScene())
+        flat_traverse(RCCF_tree[root["children"][2]], imaris_app.GetSurpassScene())  # test on subset for speed
