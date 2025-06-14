@@ -1,11 +1,16 @@
+import logging
 import pickle
 import sys
 import subprocess
 import time
 import os
+
 # from pprint import pprint
 import imaris_surface_helpers as imsurf
 import pandas as pd
+
+# Define logger at the module level
+logger = logging.getLogger(__name__)
 
 """
 # this bits just copy pasted from make_label_surfaces as a helpful reference
@@ -40,7 +45,7 @@ def create_surface(node):
     surface = imaris_app.GetImageProcessing().DetectSurfacesWithUpperThreshold(img, [], 0, 0, 0, True, False,
                                                                                label_bounds[0], True, False,
                                                                                label_bounds[1], None)
-    print("create surface for ROI: {}".format(roi_num))
+    logger.info("Creating surface for ROI: %s", roi_num)
     # last argument is alpha. 0 gives full opacity
     color = imsurf.convert_color_to_8bit(node["red"], node["green"], node["blue"], 0)
     surface.SetColorRGBA(color)
@@ -53,7 +58,7 @@ def check_if_dead_end(node):
     # recursively check children to see if we end up with a real ROI
     # if we do not, then we should skip this branch without making a folder
     # only if there are NO real regions in that ENTIRE BRANCH
-    print("CHECK IF DEAD END was passed node: {}".format(node)) if DEBUG else ""
+    logger.debug("CHECK IF DEAD END was passed node: %s", node)
     if node["ROI_num"] == "NaN":
         # then we are some type of folder
         if not node["children"]:
@@ -64,10 +69,10 @@ def check_if_dead_end(node):
             for child in node["children"]:
                 # loop through and if ANY branch is nonempty, then we return false
                 if not check_if_dead_end(RCCF_tree[child]):
-                    print("descendents here. Not a dead end. Return false")
+                    logger.debug("Descendents here. Not a dead end. Return false")
                     return False
             # only if we loop trhough all and find no descendents, then do we return True
-            print("DEAD END")
+            logger.debug("DEAD END")
             return True
     # if ROI_num is a number, then it is an RCCF region. absolutely not a dead end. 
     return False
@@ -78,37 +83,37 @@ def check_if_dead_end(node):
 def traverse(node, parent_group):
     """Creates a single imaris file with a hierarchial RCCF tree surfaces object
     group strutures are represented as groups (folders) and rois are represented as surface objects"""
-    print("current node: {}".format(node)) if DEBUG else ""
+    logger.debug("Current node in traverse: %s", node)
     if node is None:
-        print("\tNode is None. Return.") if DEBUG else ""
+        logger.debug("Node is None in traverse. Return.")
         return
     # checking for empty list
     if not node["children"]:
         # TODO: what do I do with these? Ignore them?
         if node["ROI_num"] == "NaN":
             return
-        print("THIS IS AN EXPLICIT ROI. CREATING SURFACE")
+        logger.info("Explicit ROI found in traverse. Creating surface.")
         # pprint(node)
         # TODO: name the surface as node["structure_name"]
-        print("\troi: {}\n\tstructure_id: {}\n\tstructure_name: {}".format(node["ROI_num"], node["structure_id"],
-                                                                           node["structure_name"]))
+        logger.info("ROI Details: Number: %s, ID: %s, Name: %s",
+                    node["ROI_num"], node["structure_id"], node["structure_name"])
         surface = create_surface(node)
         surface.SetName(node["structure_name"])
         parent_group.AddChild(surface, -1)
         return
     # else it is a group
-    print("return value of check if dead end is:  {}".format(check_if_dead_end(node)))
+    logger.debug("Return value of check_if_dead_end for node %s: %s", node.get("structure_id", "N/A"), check_if_dead_end(node))
     if not check_if_dead_end(node):
-        print("is a group and is not a dead end. keep traversaling") if DEBUG else ""
+        logger.debug("Node %s is a group and not a dead end. Keep traversing.", node.get("structure_id", "N/A"))
         container = factory.CreateDataContainer()
         container.SetName(node["structure_name"])
         parent_group.AddChild(container, -1)
         for child in node["children"]:
-            print("calling traverse on child {}".format(child)) if DEBUG else ""
+            logger.debug("Calling traverse on child: %s", child)
             traverse(RCCF_tree[child], container)
         return
     else:
-        print("hit final else, just return") if DEBUG else ""
+        logger.debug("Node %s is a dead end or already processed. Return.", node.get("structure_id", "N/A"))
         return
 
 
@@ -120,40 +125,39 @@ def flat_traverse(node, parent_group, white_list=None):
     # and it does not create the folder structure
     # otherwise works exactly the same
     # white list is an optional argument, if True, it will generate ONLY the asked for regions
-    print("current node: {}".format(node)) if DEBUG else ""
+    logger.debug("Current node in flat_traverse: %s", node)
     if node is None:
-        print("\tNode is None. Return.") if DEBUG else ""
+        logger.debug("Node is None in flat_traverse. Return.")
         return
     # checking for empty list
     if not node["children"]:
         if node["ROI_num"] == "NaN":
             return
         if white_list is not None:
-            print("white list is given")
+            logger.debug("White list is provided for flat_traverse.")
             if node["ROI_num"] not in white_list:
                 # if we are given an explicit list of children, then check this one is a member
-                print("white list is given, and {} is not a member".format(node["ROI_num"]))
+                logger.debug("ROI %s is not in the white list. Skipping.", node["ROI_num"])
                 return
-
-        print("THIS IS AN EXPLICIT ROI. CREATING SURFACE")
-        print("\troi: {}\n\tstructure_id: {}\n\tstructure_name: {}".format(node["ROI_num"], node["structure_id"],
-                                                                           node["structure_name"]))
+        logger.info("Explicit ROI found in flat_traverse. Creating surface.")
+        logger.info("ROI Details: Number: %s, ID: %s, Name: %s",
+                    node["ROI_num"], node["structure_id"], node["structure_name"])
         surface = create_surface(node)
         surface.SetName(node["structure_name"])
         parent_group.AddChild(surface, -1)
         return
     # else it is a group
     if not check_if_dead_end(node):
-        print("is a group and is not a dead end. keep traversaling") if DEBUG else ""
+        logger.debug("Node %s is a group and not a dead end (flat_traverse). Keep traversing.", node.get("structure_id", "N/A"))
         #container = factory.CreateDataContainer()
         #container.SetName(node["structure_name"])
         #parent_group.AddChild(container, -1)
         for child in node["children"]:
-            print("calling traverse on child {}".format(child)) if DEBUG else ""
+            logger.debug("Calling flat_traverse on child: %s", child)
             flat_traverse(RCCF_tree[child], parent_group)
         return
     else:
-        print("hit final else, just return") if DEBUG else ""
+        logger.debug("Node %s is a dead end or already processed in flat_traverse. Return.", node.get("structure_id", "N/A"))
         return
 
 
@@ -169,13 +173,20 @@ def load_white_list(file_path):
 
 
 if __name__ == "__main__":
+    # Configure logging as the first thing in the main execution block
+    log_level = logging.DEBUG if DEBUG else logging.INFO
+    logging.basicConfig(
+        level=log_level,
+        stream=sys.stdout,  # Direct logs to stdout
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
     # if you want this script to handle imaris launch and data load
     # if false, will only search for application 101 and load image 0 from the scene. be careful.
     open_imaris = True
 
     white_list_file = "B:/20.5xfad.01/BXD77_paper/imaris_figure/bxd77_5xfadpaper_figure_colors.xlsx"
     white_list = load_white_list(white_list_file)
-
 
     output_dir = "B:/ProjectSpace/hmm56/imaris_surfaces/test_results/2025"
     RCCF_tree_file = "B:/ProjectSpace/hmm56/imaris_surfaces/data/templates/RCCF_tree-reduced.pkl"
@@ -205,7 +216,7 @@ if __name__ == "__main__":
     workstation_imaris_path = workstation_imaris_path.replace("/","\\")
     # insert at 0 to put it at front of search path.
     sys.path.insert(0, workstation_imaris_path)
-    print(sys.path)
+    logger.debug("sys.path after modification: %s", sys.path)
     # only works python > 3.8
     # os.add_dll_directory(workstation_imaris_path)
     # os.add_dll_directory(xt_path)
@@ -226,7 +237,7 @@ if __name__ == "__main__":
     # load only the label file so that this is unambiguous
     img = imaris_app.GetImage(0)
 
-    print("attempt to open {}".format(RCCF_tree_file))
+    logger.info("Attempting to open RCCF tree file: %s", RCCF_tree_file)
     with open(RCCF_tree_file, "rb") as f:
         RCCF_tree = pickle.load(f)
         root = RCCF_tree[root_structure_id]
