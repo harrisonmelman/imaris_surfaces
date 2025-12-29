@@ -39,7 +39,7 @@ container.AddChild(surface,-1)
 DEBUG=True
 
 # def create_surface(roi_num, RCCF_label_colors):
-def create_surface(node):
+def create_surface(node, img, imaris_app):
     roi_num = int(node["ROI_num"])
     label_bounds = [roi_num - 0.5, roi_num + 0.5]
     surface = imaris_app.GetImageProcessing().DetectSurfacesWithUpperThreshold(img, [], 0, 0, 0, True, False,
@@ -52,35 +52,13 @@ def create_surface(node):
     return surface
 
 
-def check_if_dead_end(node):
-    # if a node is not an ROI, then it should become a folder
-    # BUT, if it does not have any children who are ROI, then we want to ignore it
-    # recursively check children to see if we end up with a real ROI
-    # if we do not, then we should skip this branch without making a folder
-    # only if there are NO real regions in that ENTIRE BRANCH
-    #logger.debug("CHECK IF DEAD END was passed node: %s", node)
-    if node["ROI_num"] == "NaN":
-        # then we are some type of folder
-        if not node["children"]:
-            # then we have no children. dead end.
-            return True
-        else:
-            # then check each child for dead-endedness
-            for child in node["children"]:
-                # loop through and if ANY branch is nonempty, then we return false
-                if not check_if_dead_end(RCCF_tree[child]):
-                    #logger.debug("Descendents here. Not a dead end. Return false")
-                    return False
-            # only if we loop trhough all and find no descendents, then do we return True
-            #logger.debug("DEAD END")
-            return True
-    # if ROI_num is a number, then it is an RCCF region. absolutely not a dead end.
-    return False
 
 
 # node is a Dict entry in the RCCF label tree
 # parent_group is an Imaris group object (a folder)
 def traverse(node, parent_group):
+    print("WARNING, hierarchial traverse needs updating")
+    return
     """Creates a single imaris file with a hierarchial RCCF tree surfaces object
     group strutures are represented as groups (folders) and rois are represented as surface objects"""
     logger.debug("Current node in traverse: %s", node)
@@ -97,13 +75,13 @@ def traverse(node, parent_group):
         # TODO: name the surface as node["structure_name"]
         logger.info("ROI Details: Number: %s, ID: %s, Name: %s",
                     node["ROI_num"], node["structure_id"], node["structure_name"])
-        surface = create_surface(node)
+        surface = create_surface(node,img,imaris_app)
         surface.SetName(node["structure_name"])
         parent_group.AddChild(surface, -1)
         return
     # else it is a group
-    logger.debug("Return value of check_if_dead_end for node %s: %s", node.get("structure_id", "N/A"), check_if_dead_end(node))
-    if not check_if_dead_end(node):
+    logger.debug("Return value of check_if_dead_end for node %s: %s", node.get("structure_id", "N/A"), imsurf.check_if_dead_end(node,RCCF_tree))
+    if not imsurf.check_if_dead_end(node,RCCF_tree):
         logger.debug("Node %s is a group and not a dead end. Keep traversing.", node.get("structure_id", "N/A"))
         container = factory.CreateDataContainer()
         container.SetName(node["structure_name"])
@@ -118,7 +96,10 @@ def traverse(node, parent_group):
 
 
 def flat_traverse(node,
+                  img,
                   default_parent_group,
+                  RCCF_tree,
+                  imaris_app,
                   white_list=None,
                   left_right_split=False,
                   left_container_for_split=None,
@@ -146,11 +127,10 @@ def flat_traverse(node,
             except ValueError:
                 logger.warning("Invalid ROI_num '%s' for node %s while checking whitelist. Skipping.", node["ROI_num"], node["structure_name"])
                 return
-
         logger.info("Explicit ROI found in flat_traverse. Creating surface.")
         logger.info("ROI Details: Number: %s, ID: %s, Name: %s",
                     node["ROI_num"], node["structure_id"], node["structure_name"])
-        surface = create_surface(node)
+        surface = create_surface(node,img,imaris_app)
         surface.SetName(node["structure_name"])
 
         # Decide where to add the surface
@@ -171,9 +151,9 @@ def flat_traverse(node,
             logger.info("Added surface '%s' (ROI %s) to default parent group '%s'", node["structure_name"], node["ROI_num"], default_parent_group.GetName())
         return
     # else it is a group
-    if not check_if_dead_end(node):
+    if not imsurf.check_if_dead_end(node, RCCF_tree):
         for child in node["children"]:
-            flat_traverse(RCCF_tree[child], default_parent_group,
+            flat_traverse(RCCF_tree[child], img, default_parent_group, RCCF_tree, imaris_app,
                           white_list=white_list, left_right_split=left_right_split,
                           left_container_for_split=left_container_for_split,
                           right_container_for_split=right_container_for_split)
@@ -183,17 +163,7 @@ def flat_traverse(node,
         return
 
 
-def load_white_list(file_path):
-    # Read the Excel file into a DataFrame
-    # excel is a full 360 rows color lookup table
-    # has an extra column at the end called 'in_manuscript_figure' which is either 'yes' or 'nan'
-    df = pd.read_excel(file_path)
-    length = df.shape[0]
-    white_list = [int(df["# ROI"][x]) for x in range(length) if df['in_manuscript_figure'][x] == 'yes']
-    return white_list
-
-
-if __name__ == "__main__":
+def main():
     # Configure logging as the first thing in the main execution block
     log_level = logging.DEBUG if DEBUG else logging.INFO
     logging.basicConfig(
@@ -209,7 +179,7 @@ if __name__ == "__main__":
 
     #white_list_file = "B:/20.5xfad.01/BXD77_paper/imaris_figure/bxd77_5xfadpaper_figure_colors.xlsx"
     white_list_file = "B:/ProjectSpace/hmm56/imaris_surfaces/test_results/im11/wm_figures_abridges_test.xlsx"
-    white_list = load_white_list(white_list_file)
+    white_list = imsurf.load_white_list(white_list_file)
     logging.debug("Found white list: %s", white_list) if white_list is not None else logging.debug("white_list not found")
 
     # input arguments/file paths
@@ -222,32 +192,12 @@ if __name__ == "__main__":
     # whole brain root. I believe this always stays the same
     root_structure_id = 997
 
-    # launch imaris
-    imaris_path = r"C:/Program Files/Bitplane/Imaris 11.0.0/Imaris.exe"
-    xt_path = r"C:/Program Files/Bitplane/Imaris 11.0.0/XT/python3"
+    ImarisLib,imaris_path = imsurf.import_ImarisLib()
 
     if open_imaris:
         imaris_process = subprocess.Popen([imaris_path, "id101"])
         # give imaris enough time to open
         time.sleep(10)
-
-    # TODO: maybe put this whole bundle of code into a module function. returns imaris_[lib,server,app]
-    # setup imaris connection
-    # these append statements are required to correctly find ImarisLib and all of its dependencies
-    # this sys.path.append is the correct way to modify your PYTHONPATH variable
-    workstation_imaris_path = "{}/code/shared/pipeline_utilities/imaris".format(os.environ["WORKSTATION_HOME"])
-    sys.path.append(imaris_path.replace("/","\\"))
-    sys.path.append(xt_path.replace("/","\\"))
-    workstation_imaris_path = workstation_imaris_path.replace("/","\\")
-    # insert at 0 to put it at front of search path.
-    sys.path.insert(0, workstation_imaris_path)
-    logger.debug("sys.path after modification: %s", sys.path)
-    # only works python > 3.8
-    os.add_dll_directory(workstation_imaris_path)
-    os.add_dll_directory(xt_path)
-
-    # must run this after modifying PYTHONPATH
-    import ImarisLib
 
     imaris_lib = ImarisLib.ImarisLib()
     imaris_server = imaris_lib.GetServer()
@@ -286,8 +236,15 @@ if __name__ == "__main__":
         logger.info("Created RIGHT root container: %s", right_container.GetName())
 
     flat_traverse(root,
+                  img,
                   default_parent_group=main_scene_parent,
+                  RCCF_tree=RCCF_tree,
+                  imaris_app=imaris_app,
                   white_list=white_list,
                   left_right_split=SPLIT_LEFT_RIGHT,
                   left_container_for_split=left_container,
                   right_container_for_split=right_container)
+
+if __name__ == "__main__":
+    main()
+
