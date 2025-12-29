@@ -74,7 +74,7 @@ def check_if_dead_end(node):
             # only if we loop trhough all and find no descendents, then do we return True
             #logger.debug("DEAD END")
             return True
-    # if ROI_num is a number, then it is an RCCF region. absolutely not a dead end. 
+    # if ROI_num is a number, then it is an RCCF region. absolutely not a dead end.
     return False
 
 
@@ -129,7 +129,6 @@ def flat_traverse(node,
     # but it always passes the root node as parent_group to prevent hierarchies
     # and it does not create the folder structure
     # white list is an optional argument, if True, it will generate ONLY the asked for regions
-    #logger.debug("passed white_list: %s", white_list) if white_list is not None else logger.debug("white_list is None")
     if node is None:
         logger.debug("Node is None in flat_traverse. Return.")
         return
@@ -205,25 +204,27 @@ if __name__ == "__main__":
 
     # if you want this script to handle imaris launch and data load
     # if false, will only search for application 101 and load image 0 from the scene. be careful.
-    open_imaris = False
+    open_imaris = True
     SPLIT_LEFT_RIGHT = True # Set to True to enable left/right group splitting
 
-    white_list_file = "B:/20.5xfad.01/BXD77_paper/imaris_figure/bxd77_5xfadpaper_figure_colors.xlsx"
+    #white_list_file = "B:/20.5xfad.01/BXD77_paper/imaris_figure/bxd77_5xfadpaper_figure_colors.xlsx"
+    white_list_file = "B:/ProjectSpace/hmm56/imaris_surfaces/test_results/im11/wm_figures_abridges_test.xlsx"
     white_list = load_white_list(white_list_file)
     logging.debug("Found white list: %s", white_list) if white_list is not None else logging.debug("white_list not found")
 
+    # input arguments/file paths
     output_dir = "B:/ProjectSpace/hmm56/imaris_surfaces/test_results/2025"
     RCCF_tree_file = "B:/ProjectSpace/hmm56/imaris_surfaces/data/templates/RCCF_tree-reduced.pkl"
     label_imaris_path = "B:/22.gaj.49/DMBA/Aligned-Data-0.3/Other/ims/labels/RCCF/DMBA_RCCF_labels.ims"
-    RCCF_csv_file = "K:/workstation/static_data/atlas/symmetric15um/labels/RCCF/symmetric15um_RCCF_labels_lookup.txt"
+    RCCF_csv_file = "{}/static_data/atlas/symmetric15um/labels/RCCF/symmetric15um_RCCF_labels_lookup.txt".format(os.environ["WORKSTATION_HOME"])
     RCCF_label_colors = imsurf.read_csv_into_memory(RCCF_csv_file)
 
     # whole brain root. I believe this always stays the same
     root_structure_id = 997
 
     # launch imaris
-    imaris_path = r"C:/Program Files/Bitplane/Imaris 10.2.0/Imaris.exe"
-    xt_path = r"C:/Program Files/Bitplane/Imaris 10.2.0/XT/python3"
+    imaris_path = r"C:/Program Files/Bitplane/Imaris 11.0.0/Imaris.exe"
+    xt_path = r"C:/Program Files/Bitplane/Imaris 11.0.0/XT/python3"
 
     if open_imaris:
         imaris_process = subprocess.Popen([imaris_path, "id101"])
@@ -242,8 +243,8 @@ if __name__ == "__main__":
     sys.path.insert(0, workstation_imaris_path)
     logger.debug("sys.path after modification: %s", sys.path)
     # only works python > 3.8
-    # os.add_dll_directory(workstation_imaris_path)
-    # os.add_dll_directory(xt_path)
+    os.add_dll_directory(workstation_imaris_path)
+    os.add_dll_directory(xt_path)
 
     # must run this after modifying PYTHONPATH
     import ImarisLib
