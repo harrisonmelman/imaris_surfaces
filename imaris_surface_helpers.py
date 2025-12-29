@@ -1,22 +1,16 @@
 # remove unused import statenments
 import numpy as np
-import math as m
 import random
-import nrrd
 import sys
-import subprocess
-import imagej
-import time
 import csv
-import pickle
+import os 
+import logging
+import pandas as pd
 
 
 # TODO: this is actually called 8-bit color, right?
 def convert_color_to_8bit(red, green, blue, alpha=0):
     vRGBA = np.array([red, green, blue, alpha], dtype="uint32")
-    # my values are already 0-255 scaled, this example assumed 0-1 scale
-    # vRGBA = 255 * vRGBA
-    # vRGBA = vRGBA.round()
     print("type: {}".format(type(vRGBA)))
     print("type: {}".format(type(vRGBA[0])))
     print("PRE-DOT-PRODUCT vrgba: {}".format(vRGBA))
@@ -112,3 +106,64 @@ def GetServer():
     imaris_lib = ImarisLib.ImarisLib()
     imaris_server = imaris_lib.GetServer()
     return imaris_server
+
+
+def import_ImarisLib():
+    # setup imaris connection
+    # these append statements are required to correctly find ImarisLib and all of its dependencies
+    # this sys.path.append is the correct way to modify your PYTHONPATH variable
+    logger = logging.getLogger(__name__)
+    logger.debug("sys.path before modification: %s", sys.path)
+
+    imaris_path = r"C:/Program Files/Bitplane/Imaris 11.0.0/Imaris.exe"
+    xt_path = r"C:/Program Files/Bitplane/Imaris 11.0.0/XT/python3"
+    workstation_imaris_path = "{}/code/shared/pipeline_utilities/imaris".format(os.environ["WORKSTATION_HOME"])
+    sys.path.append(imaris_path.replace("/","\\"))
+    sys.path.append(xt_path.replace("/","\\"))
+    workstation_imaris_path = workstation_imaris_path.replace("/","\\")
+    # insert at 0 to put it at front of search path.
+    sys.path.insert(0, workstation_imaris_path)
+    logger.debug("sys.path after modification: %s", sys.path)
+    # only works python > 3.8
+    os.add_dll_directory(workstation_imaris_path)
+    os.add_dll_directory(xt_path)
+
+    # must run this after modifying PYTHONPATH
+    import ImarisLib
+    return ImarisLib,imaris_path
+
+
+def load_white_list(file_path):
+    # Read the Excel file into a DataFrame
+    # excel is a full 360 rows color lookup table
+    # has an extra column at the end called 'in_manuscript_figure' which is either 'yes' or 'nan'
+    df = pd.read_excel(file_path)
+    length = df.shape[0]
+    white_list = [int(df["# ROI"][x]) for x in range(length) if df['in_manuscript_figure'][x] == 'yes']
+    return white_list
+
+
+def check_if_dead_end(node, RCCF_tree):
+    # if a node is not an ROI, then it should become a folder
+    # BUT, if it does not have any children who are ROI, then we want to ignore it
+    # recursively check children to see if we end up with a real ROI
+    # if we do not, then we should skip this branch without making a folder
+    # only if there are NO real regions in that ENTIRE BRANCH
+    #logger.debug("CHECK IF DEAD END was passed node: %s", node)
+    if node["ROI_num"] == "NaN":
+        # then we are some type of folder
+        if not node["children"]:
+            # then we have no children. dead end.
+            return True
+        else:
+            # then check each child for dead-endedness
+            for child in node["children"]:
+                # loop through and if ANY branch is nonempty, then we return false
+                if not check_if_dead_end(RCCF_tree[child],RCCF_tree):
+                    #logger.debug("Descendents here. Not a dead end. Return false")
+                    return False
+            # only if we loop trhough all and find no descendents, then do we return True
+            #logger.debug("DEAD END")
+            return True
+    # if ROI_num is a number, then it is an RCCF region. absolutely not a dead end.
+    return False
